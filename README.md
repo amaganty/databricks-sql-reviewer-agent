@@ -1,46 +1,64 @@
-AI SQL Reviewer & Optimizer Agent (Databricks)
+# AI SQL Reviewer & Optimizer Agent (Databricks)
 
-Goal
-A notebook-based agent that reviews Spark SQL queries for performance, cost, and correctness risks, grounded in the actual Photon/Spark execution plan, and proposes safe optimizations.
+## Goal
+A notebook-based agent that reviews Spark SQL queries for **performance**, **cost**, and **correctness** risks, grounded in the actual **Photon / Spark execution plan**, and proposes **safe optimizations**.
 
-How it works
+---
 
-User provides a SQL query in the notebook widget
+## How It Works
+1. The user provides a SQL query via a Databricks notebook widget  
+2. A tool layer extracts the execution plan using `EXPLAIN`  
+3. An LLM (Databricks Model Serving) produces a **structured JSON review**, including:
+   - performance and cost risks
+   - correctness considerations
+   - rewrite candidates
+   - an optimized proposal
+4. Guardrails detect potential **semantic changes** (e.g. JOIN, LIMIT, LIKE pattern changes)
+5. The notebook automatically selects and displays the **safest rewrite**
 
-Tool layer extracts the execution plan via EXPLAIN
+---
 
-An LLM (Databricks Model Serving) produces a structured JSON review:
+## Tech Stack
+- Databricks Notebooks (Python + Spark SQL)
+- Databricks Model Serving
+  - Primary endpoint: `databricks-claude-sonnet-4-5`
+  - Fallback endpoint: `databricks-meta-llama-3-1-8b-instruct`
 
-risks and findings
+---
 
-rewrite candidates
+## MCP-Style Tools (In-Notebook)
+- `tool_explain(sql, mode)`  
+  Returns Spark / Photon `EXPLAIN` plan text
 
-an “optimized” proposal
+- `tool_llm_review(sql, plan)`  
+  Produces a strict JSON review with rewrite candidates and `semantics_risk`
 
-Guardrails detect potential semantic changes (e.g., JOIN/LIMIT/LIKE pattern changes)
+- `detect_semantic_risks(original, rewrite)`  
+  Heuristic guardrail to detect silent semantic changes
 
-The notebook selects and displays the safest rewrite automatically
+- `pick_safest_sql(original, review)`  
+  Selects the safest rewrite candidate for execution or diffing
 
-Tech
+---
 
-Databricks Notebooks (Python + Spark SQL)
+## Safety & Governance
+- Rewrite candidates are explicitly labeled with `semantics_risk`
+- Guardrails warn when optimizations may change query meaning
+- Safe selection prefers **non-risky optimizations** such as:
+  - column projection reduction
+  - predicate pushdown improvements
+  - avoiding unnecessary shuffles or sorts
 
-Databricks Model Serving endpoint: databricks-claude-sonnet-4-5
+---
 
-Fallback endpoint: databricks-meta-llama-3-1-8b-instruct
+## Demo Flow
+1. Paste a SQL query into the notebook widget  
+2. Run the review cell  
+3. Inspect the execution plan and AI findings  
+4. Review guardrail warnings (if any)  
+5. Compare original vs safest optimized SQL
 
-MCP-style tools (in-notebook)
+---
 
-tool_explain(sql, mode) → returns EXPLAIN plan text
-
-tool_llm_review(sql, plan) → returns strict JSON review + rewrite candidates (semantics_risk)
-
-detect_semantic_risks(original, rewrite) → heuristic guardrail for silent semantic changes
-
-pick_safest_sql(original, review) → selects safest rewrite candidate for execution/diffing
-
-Safety & Governance
-
-The agent labels rewrites with semantics_risk and warns when changes could alter results.
-
-Safe rewrite selection prefers non-risky optimizations (projection reduction, predicate improvements, etc.).
+## Notes
+This project is intended as a **Databricks-native AI agent demo** and focuses on correctness-first optimization rather than aggressive query rewriting.
